@@ -2,7 +2,7 @@
 <html lang="es-MX">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#F5F6F8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -82,9 +82,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .chip .nm{font-size:.8rem;color:var(--muted);white-space:nowrap}
 .chip .sc{font-size:2.1rem;font-weight:500;letter-spacing:-.02em;line-height:1;color:var(--muted)}
 .chip.on{border-color:var(--accent)} .chip.on .sc{font-weight:800;color:var(--ink)}
-.boardwrap{overflow:auto;flex:0 0 auto;margin:0 -4px;padding:0 4px;max-height:calc(100vw + 4px)}
-.board{--size:min(calc(100vw - 32px),528px);width:var(--size);display:grid;grid-template-columns:repeat(15,minmax(0,1fr));gap:2px;margin:0 auto}
-.board.zoom{--size:calc(min(calc(100vw - 32px),528px)*1.75)}
+.boardwrap{--base:min(calc(100vw - 32px),528px);position:relative;overflow:auto;width:var(--base);flex:1 1 auto;min-height:var(--base);margin:0 auto;border-radius:6px;touch-action:pan-x pan-y;scrollbar-width:none;overscroll-behavior:contain}
+.boardwrap::-webkit-scrollbar{display:none}
+.board{--size:calc(var(--base) * var(--z,1));width:var(--size);display:grid;grid-template-columns:repeat(15,minmax(0,1fr));gap:2px}
+.top,.scores,.status,.rack,.actions{flex-shrink:0}
+.zoomctl{display:flex;align-items:center;gap:6px;margin-right:-8px}
+.zoomctl .ico{width:40px;height:40px}
 .cell{aspect-ratio:1;background:var(--cell);border:0;border-radius:4px;padding:0;display:grid;place-items:center;line-height:1;
   font-size:calc(var(--size)/15*.34);font-weight:600;color:var(--muted);position:relative}
 .cell.p3{background:var(--t30);color:var(--accent);font-weight:800}
@@ -154,7 +157,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   <section class="game hidden" id="game">
     <div class="top">
       <button class="ico" id="menuBtn" aria-label="Menú"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16M4 16h16"/></svg></button>
-      <div class="bag"><span id="bagN">0</span> en bolsa</div>
+      <div class="zoomctl">
+        <span class="bag"><span id="bagN">0</span> en bolsa</span>
+        <button class="ico" id="zoomBtn" aria-label="Agrandar tablero"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/><path d="M11 8v6M8 11h6" id="zoomPlus"/></svg></button>
+      </div>
     </div>
     <div class="scores" id="scores"></div>
     <div class="boardwrap" id="boardwrap"><div class="board" id="board"></div></div>
@@ -369,7 +375,8 @@ loadDawg($("dawg").textContent.trim());
 
 const LEVELS = { facil:"Compu fácil", normal:"Compu normal", dificil:"Compu difícil" };
 let S = null;                       // estado de la partida
-let pending = [], selected = null, busy = false, zoom = false;
+let pending = [], selected = null, busy = false, zoom = 1;
+const ZMIN = 1, ZMAX = 2.6, ZSTEP = 1.8;
 let setup = store.get(SETUP) || [{ name:"Miguel", type:"human" }, { name:"Compu", type:"normal" }];
 
 // ---------- helpers ----------
@@ -444,7 +451,7 @@ function render() {
   renderBoard(); renderRack(); updateStatus();
 }
 function renderBoard() {
-  const b = $("board"); b.innerHTML = ""; b.classList.toggle("zoom", zoom);
+  const b = $("board"); b.innerHTML = "";
   const lastSet = new Set(S.last.map(t => t.r * 15 + t.c));
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
     const cell = document.createElement("button"); cell.className = "cell"; cell.dataset.r = r; cell.dataset.c = c;
@@ -503,6 +510,7 @@ function tapRack(i) {
   renderBoard(); renderRack();
 }
 $("board").addEventListener("click", e => {
+  if (Date.now() - lastPinch < 350) return;
   const cell = e.target.closest(".cell"); if (!cell || busy || cur().type !== "human") return;
   const r = +cell.dataset.r, c = +cell.dataset.c;
   const pi = pending.findIndex(p => p.r === r && p.c === c);
@@ -537,6 +545,50 @@ $("hintBtn").onclick = () => {
   }, 30);
 };
 $("menuBtn").onclick = () => menuSheet();
+
+
+// ---------- Zoom solo del tablero ----------
+let lastPinch = 0;
+const wrap = $("boardwrap");
+function setZoom(z, cx, cy) {
+  // cx, cy: punto de enfoque relativo al marco del tablero
+  z = Math.min(ZMAX, Math.max(ZMIN, z));
+  const r = wrap.getBoundingClientRect();
+  if (cx === undefined) { cx = r.width / 2; cy = r.height / 2; }
+  const fx = (wrap.scrollLeft + cx) / zoom, fy = (wrap.scrollTop + cy) / zoom;
+  zoom = z; $("board").style.setProperty("--z", z);
+  wrap.scrollLeft = fx * z - cx; wrap.scrollTop = fy * z - cy;
+  const big = z > 1.05;
+  $("zoomBtn").setAttribute("aria-label", big ? "Tablero normal" : "Agrandar tablero");
+  $("zoomPlus").setAttribute("d", big ? "M8 11h6" : "M11 8v6M8 11h6");
+}
+$("zoomBtn").onclick = () => {
+  if (zoom > 1.05) return setZoom(1);
+  // al agrandar, enfoca donde está el juego (o donde estás colocando fichas)
+  const pts = pending.length ? pending : S.last.length ? S.last : [{ r: CENTER, c: CENTER }];
+  const r = pts.reduce((a, p) => a + p.r, 0) / pts.length, c = pts.reduce((a, p) => a + p.c, 0) / pts.length;
+  const cell = wrap.clientWidth / 15;
+  setZoom(ZSTEP);
+  wrap.scrollLeft = (c + .5) * cell * ZSTEP - wrap.clientWidth / 2;
+  wrap.scrollTop = (r + .5) * cell * ZSTEP - wrap.clientHeight / 2;
+};
+let pinch = null;
+const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+wrap.addEventListener("touchstart", e => {
+  if (e.touches.length === 2) {
+    const r = wrap.getBoundingClientRect();
+    pinch = { d: dist(e.touches), z: zoom,
+      cx: (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left, cy: (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top };
+  }
+}, { passive: true });
+wrap.addEventListener("touchmove", e => {
+  if (!pinch || e.touches.length !== 2) return;
+  e.preventDefault();
+  setZoom(pinch.z * dist(e.touches) / pinch.d, pinch.cx, pinch.cy);
+}, { passive: false });
+wrap.addEventListener("touchend", e => { if (pinch && e.touches.length < 2) { pinch = null; lastPinch = Date.now(); if (zoom < 1.08) setZoom(1); } });
+// Safari: evita que el gesto de pellizco agrande toda la página
+["gesturestart", "gesturechange"].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
 
 // ---------- Turnos ----------
 function commitMove(tiles, score, word, rackIdx) {
@@ -656,8 +708,7 @@ function menuSheet() {
     <h3>Partida</h3>
     <div class="check"><input id="chkIn" placeholder="Revisar una palabra" autocomplete="off" autocapitalize="off"><button id="chkB">Revisar</button></div>
     <p class="small" id="chkOut" style="min-height:1.4em;margin:0 0 6px"></p>
-    <button class="row" id="zoomB">${zoom ? "Tablero normal" : "Agrandar tablero"}</button>
-    <button class="row" id="histB">Historial de jugadas</button>
+        <button class="row" id="histB">Historial de jugadas</button>
     <button class="row" id="rulesB">Cómo se juega</button>
     <button class="row" id="homeB">Salir al inicio (se guarda la partida)</button>
     <button class="row" id="quitB" style="color:var(--warn)">Terminar partida</button></div>`);
@@ -665,7 +716,6 @@ function menuSheet() {
     if (!w) return; const ok = isWord(w); $("chkOut").textContent = ok ? `${w.toUpperCase()} sí se vale` : `${w.toUpperCase()} no está en el diccionario`;
     $("chkOut").style.color = ok ? "var(--ok)" : "var(--warn)"; };
   $("chkB").onclick = check; $("chkIn").onkeydown = e => { if (e.key === "Enter") check(); };
-  $("zoomB").onclick = () => { zoom = !zoom; closeOverlay(); renderBoard(); };
   $("histB").onclick = () => openSheet(`<h3>Historial</h3>${h.length ? `<ul class="hist">${h.map(x => `<li><span>${esc(S.players[x.p].name)}: ${esc(x.word.toUpperCase())}</span><span>${x.score}</span></li>`).join("")}</ul>` : `<p class="small">Todavía no hay jugadas.</p>`}`);
   $("rulesB").onclick = rulesSheet;
   $("homeB").onclick = goHome;
@@ -673,7 +723,7 @@ function menuSheet() {
 }
 function rulesSheet() {
   openSheet(`<div class="rules"><h3>Cómo se juega</h3>
-  <p>Toca una ficha de tu atril y luego una casilla para colocarla. Toca una ficha azul para regresarla. Para reordenar tu atril, toca dos fichas.</p>
+  <p>Toca una ficha de tu atril y luego una casilla para colocarla. Toca una ficha azul para regresarla. Pellizca el tablero o usa la lupa para agrandarlo; tus fichas se quedan en su lugar. Para reordenar tu atril, toca dos fichas.</p>
   <p>La primera palabra pasa por la estrella. Después, cada palabra se conecta con las que ya están, en una sola fila o columna. Todas las palabras que formes deben existir.</p>
   <p>Las palabras van sin acentos (CAMION, ARBOL). Sí existe la Ñ. No hay K ni W.</p>
   <div class="legend"><span><i style="color:var(--muted)">2L</i>letra doble</span><span><i>3L</i>letra triple</span><span><i style="background:var(--t14);color:var(--accent)">2P</i>palabra doble</span><span><i style="background:var(--t30);color:var(--accent)">3P</i>palabra triple</span></div>
