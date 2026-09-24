@@ -100,7 +100,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .cell .tile.pend{background:var(--accent);color:#fff}
 .cell .tile.pend.blank .ltr{color:#fff;text-decoration:underline;text-underline-offset:2px}
 .cell .tile.recent{box-shadow:inset 0 0 0 2px var(--accent)}
-.status{margin-top:auto;min-height:48px;display:flex;align-items:baseline;justify-content:center;gap:8px;text-align:center;font-size:.95rem;line-height:1.3;padding:8px 0}
+.status{margin-top:auto;min-height:48px;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:0 8px;text-align:center;font-size:.95rem;line-height:1.3;padding:8px 0}
 .status .w{font-size:1.06rem;font-weight:700;letter-spacing:.04em}
 .status .s{font-size:1.06rem;font-weight:500;color:var(--accent)}
 .status.bad{color:var(--warn)}
@@ -137,6 +137,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .legend span{display:flex;align-items:center;gap:6px;font-size:.85rem}
 .legend i{width:18px;height:18px;border-radius:4px;display:inline-grid;place-items:center;font-style:normal;font-size:8px;font-weight:800;background:var(--cell)}
 .rules p{line-height:1.55;margin:0 0 12px}
+.defrow{display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
+.defrow .dw{flex:1;font-size:1.2rem;font-weight:700;letter-spacing:.04em}
+.defbtn{display:inline-grid;place-items:center;height:44px;padding:0 16px;border-radius:12px;background:var(--accent);color:#fff;font-weight:700;text-decoration:none}
+.defbtn.alt{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.deflink{border:0;background:none;color:var(--accent);font-weight:600;padding:6px 4px;margin-left:6px}
+.histw{border:0;background:none;padding:0;color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+#chkOut a{color:var(--accent);font-weight:600}
 </style>
 </head>
 <body>
@@ -496,7 +503,11 @@ function updateStatus(msg, kind) {
     return;
   }
   $("playBtn").disabled = true;
-  if (statusMsg) { st.textContent = statusMsg.msg; if (statusMsg.kind) st.classList.add(statusMsg.kind); }
+  if (statusMsg) {
+    st.textContent = statusMsg.msg; if (statusMsg.kind) st.classList.add(statusMsg.kind);
+    if (statusMsg.word) { const b = document.createElement("button"); b.className = "deflink"; b.textContent = "¿Qué significa?";
+      b.onclick = () => defSheet([statusMsg.word]); st.appendChild(b); }
+  }
   else st.textContent = "";
 }
 
@@ -511,8 +522,10 @@ function tapRack(i) {
 }
 $("board").addEventListener("click", e => {
   if (Date.now() - lastPinch < 350) return;
-  const cell = e.target.closest(".cell"); if (!cell || busy || cur().type !== "human") return;
+  const cell = e.target.closest(".cell"); if (!cell) return;
   const r = +cell.dataset.r, c = +cell.dataset.c;
+  if (S.board[r][c] && selected === null) return defSheet(wordsAt(r, c));
+  if (busy || cur().type !== "human") return;
   const pi = pending.findIndex(p => p.r === r && p.c === c);
   if (pi >= 0) { pending.splice(pi, 1); renderBoard(); renderRack(); updateStatus(); return; }
   if (S.board[r][c] || selected === null) return;
@@ -601,7 +614,7 @@ function commitMove(tiles, score, word, rackIdx) {
   const r = store.get(REC) || { best: 0, bestName: "", word: "", wordPts: 0 };
   if (pl.type === "human" && score > r.wordPts) { r.word = word; r.wordPts = score; store.set(REC, r); }
   pending = []; selected = null;
-  statusMsg = { msg: `${pl.name} jugó ${word.toUpperCase()} por ${score} pts${tiles.length === RACK ? " — ¡Pleno!" : ""}` };
+  statusMsg = { msg: `${pl.name} jugó ${word.toUpperCase()} por ${score} pts${tiles.length === RACK ? ", Pleno" : ""}`, word };
   if (!pl.rack.length && !S.bag.length) return endGame(S.turn);
   nextTurn();
 }
@@ -667,6 +680,30 @@ function endGame(finisher) {
   $("homeBtn2").onclick = goHome;
 }
 
+
+// ---------- Significados ----------
+function wordsAt(r, c) {
+  const out = [];
+  for (const [dr, dc] of [[0, 1], [1, 0]]) {
+    let rr = r, cc = c; while (S.board[rr - dr]?.[cc - dc]) { rr -= dr; cc -= dc; }
+    let w = ""; while (S.board[rr]?.[cc]) { w += S.board[rr][cc].ch; rr += dr; cc += dc; }
+    if (w.length >= 2 && !out.includes(w)) out.push(w);
+  }
+  return out;
+}
+const RAE = w => "https://dle.rae.es/" + encodeURIComponent(w);
+const WIKT = w => "https://es.wiktionary.org/wiki/" + encodeURIComponent(w);
+function defLinks(w) {
+  return `<div class="defrow"><span class="dw">${esc(w.toUpperCase())}</span>
+    <a class="defbtn" href="${RAE(w)}" target="_blank" rel="noopener">RAE</a>
+    <a class="defbtn alt" href="${WIKT(w)}" target="_blank" rel="noopener">Wikcionario</a></div>`;
+}
+function defSheet(words) {
+  if (!words.length) return;
+  openSheet(`<h3>${words.length > 1 ? "¿Cuál palabra?" : "Significado"}</h3>${words.map(defLinks).join("")}
+    <p class="small" style="margin:14px 0 0">Se abre el diccionario encima del juego; ciérralo para volver a tu partida. Necesita internet. Si la palabra está conjugada, la RAE normalmente te muestra la forma base; si lleva acento y no la encuentra, prueba Wikcionario.</p>`);
+}
+
 // ---------- Overlays ----------
 const esc = s => String(s).replace(/[&<>"]/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[m]));
 function openSheet(html, dismiss = true) {
@@ -713,23 +750,25 @@ function menuSheet() {
     <button class="row" id="homeB">Salir al inicio (se guarda la partida)</button>
     <button class="row" id="quitB" style="color:var(--warn)">Terminar partida</button></div>`);
   const check = () => { const w = $("chkIn").value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u0302\u0308]/g, "").normalize("NFC");
-    if (!w) return; const ok = isWord(w); $("chkOut").textContent = ok ? `${w.toUpperCase()} sí se vale` : `${w.toUpperCase()} no está en el diccionario`;
+    if (!w) return; const ok = isWord(w); $("chkOut").innerHTML = ok ? `${esc(w.toUpperCase())} sí se vale. <a href="${RAE(w)}" target="_blank" rel="noopener">Ver significado</a>` : `${esc(w.toUpperCase())} no está en el diccionario`;
     $("chkOut").style.color = ok ? "var(--ok)" : "var(--warn)"; };
   $("chkB").onclick = check; $("chkIn").onkeydown = e => { if (e.key === "Enter") check(); };
-  $("histB").onclick = () => openSheet(`<h3>Historial</h3>${h.length ? `<ul class="hist">${h.map(x => `<li><span>${esc(S.players[x.p].name)}: ${esc(x.word.toUpperCase())}</span><span>${x.score}</span></li>`).join("")}</ul>` : `<p class="small">Todavía no hay jugadas.</p>`}`);
+  $("histB").onclick = () => openSheet(`<h3>Historial</h3>${h.length ? `<ul class="hist">${h.map(x => `<li><span>${esc(S.players[x.p].name)}: ${x.word.startsWith("(") ? esc(x.word) : `<button class="histw" data-w="${esc(x.word)}">${esc(x.word.toUpperCase())}</button>`}</span><span>${x.score}</span></li>`).join("")}</ul><p class="small" style="margin-top:12px">Toca una palabra para ver su significado.</p>` : `<p class="small">Todavía no hay jugadas.</p>`}`);
   $("rulesB").onclick = rulesSheet;
   $("homeB").onclick = goHome;
   $("quitB").onclick = () => confirmSheet("¿Terminar la partida?", "Se cuentan los puntos como van ahorita.", "Terminar", () => endGame(-1));
 }
 function rulesSheet() {
   openSheet(`<div class="rules"><h3>Cómo se juega</h3>
-  <p>Toca una ficha de tu atril y luego una casilla para colocarla. Toca una ficha azul para regresarla. Pellizca el tablero o usa la lupa para agrandarlo; tus fichas se quedan en su lugar. Para reordenar tu atril, toca dos fichas.</p>
+  <p>Toca una ficha de tu atril y luego una casilla para colocarla. Toca una ficha azul para regresarla. Pellizca el tablero o usa la lupa para agrandarlo; tus fichas se quedan en su lugar. Toca cualquier palabra del tablero para ver su significado. Para reordenar tu atril, toca dos fichas.</p>
   <p>La primera palabra pasa por la estrella. Después, cada palabra se conecta con las que ya están, en una sola fila o columna. Todas las palabras que formes deben existir.</p>
   <p>Las palabras van sin acentos (CAMION, ARBOL). Sí existe la Ñ. No hay K ni W.</p>
   <div class="legend"><span><i style="color:var(--muted)">2L</i>letra doble</span><span><i>3L</i>letra triple</span><span><i style="background:var(--t14);color:var(--accent)">2P</i>palabra doble</span><span><i style="background:var(--t30);color:var(--accent)">3P</i>palabra triple</span></div>
   <p style="margin-top:10px">Usar tus 7 fichas en una jugada es un Pleno: +50 pts. Los comodines valen 0.</p>
   <p>La partida termina cuando alguien se queda sin fichas y la bolsa está vacía, o cuando todos pasan dos veces seguidas.</p></div>`);
 }
+
+$("overlay").addEventListener("click", e => { const b = e.target.closest(".histw"); if (b) defSheet([b.dataset.w]); });
 
 // ---------- Arranque ----------
 renderHero(); renderSetup();

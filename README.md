@@ -8,6 +8,7 @@ Juego de palabras en español para el celular, sin anuncios. Cada quien forma pa
 - **En familia**: de 2 a 4 personas en el mismo celular. Entre turnos aparece una pantalla que oculta las fichas del jugador anterior.
 - **Diccionario integrado** con ~635,000 palabras en español, incluidas conjugaciones y plurales. Valida cada jugada automáticamente y también sirve para revisar si una palabra existe.
 - **Pista**: sugiere la mejor jugada posible con tus fichas.
+- **Significado de palabras**: toca cualquier palabra del tablero (o del historial) y ábrela en el Diccionario de la RAE o en Wikcionario sin salir del juego. Requiere internet; el resto del juego funciona sin conexión.
 - **Zoom del tablero**: pellizca el tablero o toca la lupa para agrandarlo. Solo crece el tablero; tu atril y los botones se quedan fijos.
 - **Funciona sin internet** una vez instalada (PWA).
 - **Guarda la partida** en curso y tus récords en el mismo celular.

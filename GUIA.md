@@ -59,7 +59,8 @@ Se genera `dawg.b64`. Reemplaza con su contenido el texto dentro de esa etiqueta
 
 - **v1:** juego completo con compu en 3 niveles, modo familia, diccionario y pista.
 - **v2:** diseño minimalista y modo oscuro.
-- **v3:** zoom solo del tablero (pellizco o lupa); las fichas y botones ya no se salen de la pantalla. En `sw.js` va `palabron-v3`; la próxima vez usa `palabron-v4`.
+- **v3:** zoom solo del tablero (pellizco o lupa); las fichas y botones ya no se salen de la pantalla.
+- **v4:** significado de palabras: toca una palabra del tablero, del historial o de "Revisar una palabra" y se abre en la RAE o Wikcionario (requiere internet). En `sw.js` va `palabron-v4`; la próxima vez usa `palabron-v5`.
 
 ## 7. Ideas para siguientes versiones
 

@@ -1,5 +1,5 @@
 // Sube este número cada vez que publiques cambios, para que los celulares descarguen la versión nueva.
-const VERSION = "palabron-v3";
+const VERSION = "palabron-v4";
 const FILES = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
